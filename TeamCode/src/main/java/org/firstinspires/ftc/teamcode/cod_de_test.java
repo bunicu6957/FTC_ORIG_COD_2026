@@ -146,7 +146,7 @@ public class cod_de_test extends LinearOpMode {
             // DRIVE (gamepad1) — mecanum
             // =========================================================
             double y  = -gamepad1.left_stick_y;  // forward/back (inverted: stick up = negative)
-            double x  =  gamepad1.left_stick_x;  // strafe
+            double x  = -gamepad1.left_stick_x;  // strafe
             double rx =  gamepad1.right_stick_x; // rotate
 
             // Slow mode for precision driving

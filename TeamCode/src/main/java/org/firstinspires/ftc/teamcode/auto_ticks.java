@@ -83,7 +83,7 @@ public class auto_ticks extends LinearOpMode {
      */
     private static final double STRAFE_CORRECTION = 1.0;
     private static final double TURN_CORRECTION = 1.0;
-
+    //ceva
     // =============================================================
     // ARM
     // =============================================================

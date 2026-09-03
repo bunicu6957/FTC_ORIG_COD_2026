@@ -17,6 +17,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
  *   left stick       translate (forward/back + strafe)
  *   right stick x    rotate
  *   right bumper     slow mode for precision driving
+ *   D-pad left       flip which end of the robot counts as the front
  *   X                toggle intake on (direction A) / off
  *   Y                toggle intake on (direction B) / off
  *   right trigger    toggle arm between RAISED and DOWN
@@ -24,7 +25,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
  *   left bumper      re-zero the arm encoder
  *   Back             cut arm power - panic only, the arm WILL fall
  *   D-pad up/down    raw direction test, works only while arm power is cut
- *   A / B, D-pad     free (claw and lift code is commented out below)
+ *   A / B            free (claw code is commented out below)
  *
  * BEFORE INIT: the arm must be resting at its bottom position. The encoder
  * is zeroed at init and every arm position is measured from there.
@@ -131,6 +132,10 @@ public class cod_nou extends LinearOpMode {
     private String armFault = "";
     private int bestAbsError = Integer.MAX_VALUE;
 
+    // ---- Drive orientation ----
+    // false = normal front. true = the opposite end drives as the front.
+    private boolean driveReversed = false;
+
     // ---- Toggle states ----
     // 0 = stopped, 1 = running "direction A", 2 = running "direction B"
     private int intakeState = 0;
@@ -144,6 +149,7 @@ public class cod_nou extends LinearOpMode {
     private boolean rightTriggerPrev = false;
     private boolean leftTriggerPrev = false;
     private boolean leftBumperPrev = false;
+    private boolean facePrev = false;
 
     @Override
     public void runOpMode() {
@@ -204,11 +210,28 @@ public class cod_nou extends LinearOpMode {
 
         while (opModeIsActive()) {
             // =========================================================
+            // DRIVE ORIENTATION (gamepad1 D-pad left) - toggle
+            // =========================================================
+            // Flipping the front is a 180 degree rotation of the robot's
+            // frame, so it inverts translation but NOT rotation - clockwise
+            // stays clockwise whichever end you call the front.
+            //
+            // Done by negating the sticks rather than calling setDirection(),
+            // which would flip the encoder readings along with the power.
+            boolean faceNow = gamepad1.dpad_left;
+            if (faceNow && !facePrev) {
+                driveReversed = !driveReversed;
+            }
+            facePrev = faceNow;
+
+            int face = driveReversed ? -1 : 1;
+
+            // =========================================================
             // DRIVE (gamepad1) - mecanum
             // =========================================================
-            double y  = -gamepad1.left_stick_y;  // forward/back
-            double x  = -gamepad1.left_stick_x;  // strafe
-            double rx =  gamepad1.right_stick_x; // rotate
+            double y  = -gamepad1.left_stick_y * face;  // forward/back
+            double x  = -gamepad1.left_stick_x * face;  // strafe
+            double rx =  gamepad1.right_stick_x;        // rotate (never flipped)
 
             double speedMultiplier = gamepad1.right_bumper ? 0.4 : 1.0;
 
@@ -403,6 +426,7 @@ public class cod_nou extends LinearOpMode {
             // =========================================================
             // TELEMETRY
             // =========================================================
+            telemetry.addData("Front", driveReversed ? "REVERSED" : "normal");
             telemetry.addData("Drive", "y=%.2f x=%.2f rx=%.2f", y, x, rx);
             telemetry.addData("Slow mode", gamepad1.right_bumper ? "ON" : "off");
             telemetry.addData("Intake state", intakeState);

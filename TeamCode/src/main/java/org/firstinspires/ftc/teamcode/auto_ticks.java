@@ -124,10 +124,10 @@ public class auto_ticks extends LinearOpMode {
 
     private static final double LEG_1_MM = 250;      // forward, a quarter metre
     private static final double TURN_1_DEG = 50;     // positive = LEFT
-    private static final double LEG_2_MM = 2600;     // forward, metre and a half
+    private static final double LEG_2_MM = 2825;     // forward, metre and a half
 
     /** Pause between moves so the robot settles before the next one. */
-    private static final long SETTLE_MS = 300;
+    private static final long SETTLE_MS = 180;
 
     /** Drive power. Lower is more accurate - less overshoot, less slip. */
     private static final double POWER = 0.8;

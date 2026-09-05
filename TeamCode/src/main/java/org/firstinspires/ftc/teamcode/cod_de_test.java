@@ -11,27 +11,45 @@ import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 /**
  * MecanumTeleOp
  *
- * Mecanum drive, intake servos, and a two-position arm.
+ * Mecanum drive, intake servos, lift servos, claw servos, and a
+ * two-position arm.
  *
  * CONTROLS (gamepad 1)
- *   left stick       translate (forward/back + strafe)
- *   right stick x    rotate
- *   right bumper     slow mode for precision driving
- *   D-pad left       flip which end of the robot counts as the front
- *   X                toggle intake on (direction A) / off
- *   Y                toggle intake on (direction B) / off
- *   right trigger    toggle arm between RAISED and DOWN
- *   left trigger     force arm DOWN from any state
- *   left bumper      re-zero the arm encoder
- *   Back             cut arm power - panic only, the arm WILL fall
- *   D-pad up/down    raw direction test, works only while arm power is cut
- *   A / B            free (claw code is commented out below)
+ *   left stick         translate (forward/back + strafe)
+ *   right stick x      rotate
+ *   right bumper       slow mode for precision driving
+ *   D-pad left         flip which end of the robot counts as the front
+ *   X                  toggle intake on (direction A) / off
+ *   Y                  toggle intake on (direction B) / off
+ *   D-pad up           lift UP, while held
+ *   D-pad down         lift DOWN, while held
+ *   right trigger      toggle arm between RAISED and DOWN
+ *   left trigger       force arm DOWN from any state
+ *   left bumper        re-zero the arm encoder
+ *   Back               cut arm power - panic only, the arm WILL fall
+ *   stick buttons      arm raw direction test, only while arm power is cut
+ *                      (right stick button = +power, left = -power)
+ *   A                  toggle claw one way / off
+ *   B                  toggle claw the other way / off
  *
  * BEFORE INIT: the arm must be resting at its bottom position. The encoder
  * is zeroed at init and every arm position is measured from there.
  *
  * BEFORE STOP: lower the arm. Power is cut when the OpMode ends and the arm
  * is not self-supporting.
+ *
+ * THE CLAW
+ * Continuous rotation servos, and the control is a toggle - so a claw
+ * left toggled on keeps driving after it has closed on something, and the
+ * servos stall until you toggle them off. That is how a CR-servo claw
+ * usually holds its grip, but it draws current and heats the servos, so
+ * do not leave it running when the claw is empty.
+ *
+ * THE LIFT
+ * Continuous rotation servos with no position feedback, so the code cannot
+ * know where the lift is or when it has reached the end of its travel.
+ * Holding a direction against a hard stop stalls the servos and heats them.
+ * Release the D-pad once the lift is where you want it.
  *
  * HOW THE ARM WORKS
  * RUN_TO_POSITION is deliberately not used. The arm runs a proportional
@@ -45,7 +63,7 @@ import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
  * Applying a single constant to both cancels itself out and does nothing.
  * setDirection() cannot fix a direction mismatch either, since it flips
  * the power and the encoder together. If the arm ever moves the wrong way,
- * cut power with Back and use the D-pad test to measure each sign
+ * cut power with Back and use the stick-button test to measure each sign
  * independently.
  *
  * Two guards watch the arm: one for leaving its travel range, one for an
@@ -59,7 +77,7 @@ public class cod_de_test extends LinearOpMode {
     // =============================================================
     // ARM CONSTANTS - verified working on the current hardware
     // (new arm motor, leads wired correctly). Do not change these
-    // without re-running the D-pad direction test.
+    // without re-running the direction test.
     // =============================================================
 
     /** Applied to the ENCODER READING only. +1 if the raw count rises as
@@ -112,18 +130,22 @@ public class cod_de_test extends LinearOpMode {
     // ---- Intake servos (continuous) ----
     private CRServo intakeLeft, intakeRight;
 
-    // ---- Claw servos (continuous) - DISABLED, code kept for later use ----
-    // private CRServo clawLeft, clawRight;
+    // ---- Lift servos (continuous) ----
+    private CRServo liftLeft, liftRight;
 
-    // ---- Lift servos (continuous) - DISABLED, code kept for later use ----
-    // private CRServo liftLeft, liftRight;
+    // ---- Claw servos (continuous) ----
+    private CRServo clawLeft, clawRight;
 
     // ---- Arm motor (with encoder) ----
     private DcMotorEx armMotor;
 
     private static final double INTAKE_POWER = 1.0;
-    // private static final double CLAW_POWER = 1.0;
-    // private static final double LIFT_POWER = 1.0;
+    private static final double CLAW_POWER = 1.0;
+
+    /** Lift speed while a D-pad direction is held. If the lift goes the
+     *  wrong way, make this negative rather than editing the control
+     *  logic. */
+    private static final double LIFT_POWER = 1.0;
 
     // ---- Arm state ----
     private int armTarget = ARM_POS_DOWN;
@@ -139,13 +161,13 @@ public class cod_de_test extends LinearOpMode {
     // ---- Toggle states ----
     // 0 = stopped, 1 = running "direction A", 2 = running "direction B"
     private int intakeState = 0;
-    // private int clawState = 0;
+    private int clawState = 0;
 
     // ---- Previous button states (for edge detection / toggling) ----
     private boolean xPrev = false;
     private boolean yPrev = false;
-    // private boolean aPrev = false;
-    // private boolean bPrev = false;
+    private boolean aPrev = false;
+    private boolean bPrev = false;
     private boolean rightTriggerPrev = false;
     private boolean leftTriggerPrev = false;
     private boolean leftBumperPrev = false;
@@ -162,11 +184,15 @@ public class cod_de_test extends LinearOpMode {
         intakeLeft  = hardwareMap.get(CRServo.class, "IL");
         intakeRight = hardwareMap.get(CRServo.class, "IR");
 
-        // clawLeft  = hardwareMap.get(CRServo.class, "clawLeft");
-        // clawRight = hardwareMap.get(CRServo.class, "clawRight");
+        // CHECK THESE NAMES against your robot configuration. I guessed
+        // LL and LR to match your FL/IL/AM style - if the OpMode fails at
+        // init saying it cannot find the device, this is why.
+        liftLeft  = hardwareMap.get(CRServo.class, "LL");
+        liftRight = hardwareMap.get(CRServo.class, "LR");
 
-        // liftLeft  = hardwareMap.get(CRServo.class, "liftLeft");
-        // liftRight = hardwareMap.get(CRServo.class, "liftRight");
+        // CHECK THESE NAMES too - guessed to match your FL/IL/LL style.
+        clawLeft  = hardwareMap.get(CRServo.class, "CL");
+        clawRight = hardwareMap.get(CRServo.class, "CR");
 
         armMotor = hardwareMap.get(DcMotorEx.class, "AM");
 
@@ -185,11 +211,23 @@ public class cod_de_test extends LinearOpMode {
         intakeLeft.setDirection(CRServo.Direction.FORWARD);
         intakeRight.setDirection(CRServo.Direction.REVERSE);
 
-        // clawLeft.setDirection(CRServo.Direction.FORWARD);
-        // clawRight.setDirection(CRServo.Direction.REVERSE);
+        // Mirrored pair, same as the intake: one side reversed so a single
+        // power value drives both servos the same way physically. If the
+        // two lift servos fight each other, flip ONE of these.
+        liftLeft.setDirection(CRServo.Direction.FORWARD);
+        liftRight.setDirection(CRServo.Direction.REVERSE);
 
-        // liftLeft.setDirection(CRServo.Direction.FORWARD);
-        // liftRight.setDirection(CRServo.Direction.REVERSE);
+        liftLeft.setPower(0);
+        liftRight.setPower(0);
+
+        // Mirrored pair again: reversing one side means a single power
+        // value spins the two servos in opposite physical directions,
+        // which is what closes and opens the claw.
+        clawLeft.setDirection(CRServo.Direction.FORWARD);
+        clawRight.setDirection(CRServo.Direction.REVERSE);
+
+        clawLeft.setPower(0);
+        clawRight.setPower(0);
 
         // ---------- Arm motor setup ----------
         // Leave direction FORWARD. All sign handling lives in the two
@@ -278,33 +316,55 @@ public class cod_de_test extends LinearOpMode {
             intakeRight.setPower(intakePower);
 
             // =========================================================
-            // CLAW (gamepad1 A / B) - toggle - DISABLED
+            // LIFT (gamepad1 D-pad up / down) - hold to run
             // =========================================================
-            // boolean aNow = gamepad1.a;
-            // boolean bNow = gamepad1.b;
-            //
-            // if (aNow && !aPrev) {
-            //     clawState = (clawState == 1) ? 0 : 1;
-            // }
-            // if (bNow && !bPrev) {
-            //     clawState = (clawState == 2) ? 0 : 2;
-            // }
-            // aPrev = aNow;
-            // bPrev = bNow;
-            //
-            // double clawPower;
-            // switch (clawState) {
-            //     case 1:  clawPower =  CLAW_POWER; break;
-            //     case 2:  clawPower = -CLAW_POWER; break;
-            //     default: clawPower =  0.0;
-            // }
-            // clawLeft.setPower(clawPower);
-            // clawRight.setPower(clawPower);
+            // Deliberately not a toggle. These servos have no position
+            // feedback, so a toggle left on would drive the lift into its
+            // end stop and sit there stalling. Holding a button means the
+            // driver is always the one deciding when to stop.
+            double liftPower;
+            if (gamepad1.dpad_up) {
+                liftPower = LIFT_POWER;
+            } else if (gamepad1.dpad_down) {
+                liftPower = -LIFT_POWER;
+            } else {
+                liftPower = 0.0;
+            }
+            liftLeft.setPower(liftPower);
+            liftRight.setPower(liftPower);
 
             // =========================================================
-            // LIFT (D-pad) - DISABLED. The D-pad is used by the arm
-            // direction test below. Re-assign before re-enabling this.
+            // CLAW (gamepad1 A / B) - toggle
             // =========================================================
+            // Same shape as the intake: A runs one direction, B the other,
+            // and pressing the same button again stops. Pressing the
+            // opposite button switches direction without needing a stop
+            // in between.
+            boolean aNow = gamepad1.a;
+            boolean bNow = gamepad1.b;
+
+            if (aNow && !aPrev) {
+                clawState = (clawState == 1) ? 0 : 1;
+            }
+            if (bNow && !bPrev) {
+                clawState = (clawState == 2) ? 0 : 2;
+            }
+            aPrev = aNow;
+            bPrev = bNow;
+
+            double clawPower;
+            switch (clawState) {
+                case 1:
+                    clawPower = CLAW_POWER;
+                    break;
+                case 2:
+                    clawPower = -CLAW_POWER;
+                    break;
+                default:
+                    clawPower = 0.0;
+            }
+            clawLeft.setPower(clawPower);
+            clawRight.setPower(clawPower);
 
             // =========================================================
             // ARM - two preset positions
@@ -373,10 +433,11 @@ public class cod_de_test extends LinearOpMode {
             if (!armEnabled) {
                 // ---- RAW DIRECTION TEST ----
                 // Power here is NOT sign-converted, so you can observe the
-                // true hardware behaviour.
-                if (gamepad1.dpad_up) {
+                // true hardware behaviour. On the stick buttons rather than
+                // the D-pad, which the lift now owns.
+                if (gamepad1.right_stick_button) {
                     armMotorPower = ARM_TEST_POWER;
-                } else if (gamepad1.dpad_down) {
+                } else if (gamepad1.left_stick_button) {
                     armMotorPower = -ARM_TEST_POWER;
                 } else {
                     armMotorPower = 0.0;
@@ -430,6 +491,9 @@ public class cod_de_test extends LinearOpMode {
             telemetry.addData("Drive", "y=%.2f x=%.2f rx=%.2f", y, x, rx);
             telemetry.addData("Slow mode", gamepad1.right_bumper ? "ON" : "off");
             telemetry.addData("Intake state", intakeState);
+            telemetry.addData("Lift", liftPower > 0 ? "UP"
+                    : liftPower < 0 ? "DOWN" : "stopped");
+            telemetry.addData("Claw state", clawState);
             telemetry.addLine();
             telemetry.addData("Arm preset",
                     (armTarget == ARM_POS_RAISED) ? "RAISED"

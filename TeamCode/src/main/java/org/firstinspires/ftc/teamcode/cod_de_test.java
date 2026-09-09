@@ -208,7 +208,11 @@ public class cod_de_test extends LinearOpMode {
         backRight.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
 
         // ---------- Servo directions ----------
-        intakeLeft.setDirection(CRServo.Direction.FORWARD);
+        // Both REVERSE. On this robot the two intake servos are mounted
+        // the same way round, so MATCHING directions make them spin
+        // opposite each other physically. If they end up opposing but in
+        // the wrong sense, set both to FORWARD instead.
+        intakeLeft.setDirection(CRServo.Direction.REVERSE);
         intakeRight.setDirection(CRServo.Direction.REVERSE);
 
         // Mirrored pair, same as the intake: one side reversed so a single

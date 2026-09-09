@@ -8,20 +8,24 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.util.ElapsedTime;
 
 /**
- * auto_match
+ * auto_match - MIRRORED
+ *
+ * The same routine as the original, flipped left-to-right. Turns and the
+ * strafe go the other way; forward and backward distances, the arm, the
+ * intake and every power are untouched.
  *
  * Sequence:
  *    1. raise the arm to 100 ticks and hold it there
  *    2. forward 100 ticks
- *    3. turn left (43)
+ *    3. turn right (43)
  *    4. lower the arm to 1 tick, start the intake running INWARD
  *    5. forward 1000 ticks
  *    6. stop the intake
- *    7. turn left (90)
+ *    7. turn right (90)
  *    8. forward 3500 ticks
  *   9a. raise the arm to 125 ticks
  *   9b. run the intake OUTWARD for 2 seconds
- *   10. strafe left 150 ticks
+ *   10. strafe right 150 ticks
  *   11. backward 2000 ticks
  *
  * DRIVING DISTANCES ARE RAW WHEEL TICKS, not millimetres. At roughly
@@ -30,13 +34,14 @@ import com.qualcomm.robotcore.util.ElapsedTime;
  *
  * THE TURNS ARE NOT TICKS
  * turnLeft() takes the same degrees-style parameter as auto_ticks, and
- * uses the identical geometry constants, so turnLeft(43) does exactly
+ * uses the identical geometry constants, so a magnitude of 43 does exactly
  * what TURN_1_DEG = 43 does in that file - which on this robot is a real
- * 90 degree turn.
+ * 90 degree turn. The values here are NEGATIVE, which is what sends the
+ * same turn to the right instead of the left.
  *
- * That means step 7's turnLeft(90) is roughly a 180 degree turn, since it
- * goes through the same fudged scale. If you wanted a real quarter turn
- * there, change TURN_2 to 43.
+ * That means step 7's magnitude of 90 is roughly a 180 degree turn, since
+ * it goes through the same fudged scale. If you wanted a real quarter turn
+ * there, change TURN_2 to -43.
  *
  * THE ARM
  * RUN_TO_POSITION, held by the hub's own controller. A LinearOpMode
@@ -47,8 +52,8 @@ import com.qualcomm.robotcore.util.ElapsedTime;
  * The encoder zeroes at init, so the arm MUST be resting at its bottom
  * position when you press init.
  */
-@Autonomous(name = "auto_albastru", group = "Auto")
-public class auto_orig extends LinearOpMode {
+@Autonomous(name = "auto_rosu", group = "Auto")
+public class auto_red extends LinearOpMode {
 
     // =============================================================
     // GEOMETRY - same values as auto_ticks, do not change in isolation
@@ -71,20 +76,21 @@ public class auto_orig extends LinearOpMode {
 
     private static final double TURN_CORRECTION = 1.0;
 
+
     // =============================================================
     // THE SEQUENCE
     // =============================================================
 
     private static final int ARM_UP_TICKS = 100;    // step 1 ridicam bratul
-    private static final int LEG_1_TICKS = 100;     // step 2 iesim din parcare
-    private static final double TURN_1 = 43;        // step 3 intorc la stanga
-    private static final int ARM_DOWN_TICKS = 1;    // step 4 las jos bratul
-    private static final int LEG_2_TICKS = 1000;    // step 5 merg in fata
-    private static final double TURN_2 = 90;        // step 7 intorc la 180
-    private static final int LEG_3_TICKS = 3500;    // step 8 merg la hp
+    private static final int LEG_1_TICKS = 300;     // step 2 iesim din parcare
+    private static final double TURN_1 = -60;       // step 3 intorc la dreapta
+    private static final int ARM_DOWN_TICKS = 10;    // step 4 las jos bratul
+    private static final int LEG_2_TICKS = 1500;    // step 5 merg in fata
+    private static final double TURN_2 = -120;       // step 7 intorc la 180
+    private static final int LEG_3_TICKS = 4000;    // step 8 merg la hp
     private static final int ARM_OUT_TICKS = 125;   // before the outtake ridic bratul la 125
     private static final long OUTTAKE_MS = 2000;    // step 9 cac afara 2s
-    private static final int STRAFE_TICKS = -150;   // step 10, negative = left strafe la stanga
+    private static final int STRAFE_TICKS = 300;    // step 10, positive = right strafe la dreapta
     private static final int LEG_4_TICKS = -2000;   // step 11, negative = back merg incet cu spatele
 
     // =============================================================
@@ -145,7 +151,7 @@ public class auto_orig extends LinearOpMode {
         setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         setMode(DcMotor.RunMode.RUN_USING_ENCODER);
 
-        telemetry.addLine("auto_match ready");
+        telemetry.addLine("auto_match ready - MIRRORED");
         telemetry.addLine("Arm must be resting at the BOTTOM right now.");
         telemetry.update();
 
@@ -161,8 +167,8 @@ public class auto_orig extends LinearOpMode {
         sleep(SETTLE_MS);
         if (!opModeIsActive()) return;
 
-        // 3. turn left
-        turnLeft(TURN_1, "3 - TURN LEFT");
+        // 3. turn right
+        turnLeft(TURN_1, "3 - TURN RIGHT");
         sleep(SETTLE_MS);
         if (!opModeIsActive()) return;
 
@@ -179,8 +185,8 @@ public class auto_orig extends LinearOpMode {
         setIntake(0);
         if (!opModeIsActive()) return;
 
-        // 7. turn left
-        turnLeft(TURN_2, "7 - TURN LEFT");
+        // 7. turn right
+        turnLeft(TURN_2, "7 - TURN RIGHT");
         sleep(SETTLE_MS);
         if (!opModeIsActive()) return;
 
@@ -201,8 +207,8 @@ public class auto_orig extends LinearOpMode {
         setIntake(0);
         if (!opModeIsActive()) return;
 
-        // 10. strafe left
-        strafe(STRAFE_TICKS, "10 - STRAFE LEFT");
+        // 10. strafe right
+        strafe(STRAFE_TICKS, "10 - STRAFE RIGHT");
         sleep(SETTLE_MS);
         if (!opModeIsActive()) return;
 
@@ -262,9 +268,9 @@ public class auto_orig extends LinearOpMode {
     }
 
     /**
-     * Positive turns LEFT. Takes the same degrees-style parameter as
-     * auto_ticks and converts it the same way, so a value of 43 gives the
-     * turn that file already produces.
+     * Positive turns LEFT, negative turns RIGHT. Takes the same
+     * degrees-style parameter as auto_ticks and converts it the same way,
+     * so a magnitude of 43 gives the turn that file already produces.
      */
     private void turnLeft(double degrees, String label) {
         double arcMm = Math.toRadians(degrees) * TURN_RADIUS_MM;
